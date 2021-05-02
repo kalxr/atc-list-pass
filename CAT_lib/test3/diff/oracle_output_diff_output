@@ -1,0 +1,11 @@
+1,4c1,5
+< Hello LLVM World at "doInitialization"
+< Hello LLVM World at "getAnalysisUsage"
+< Hello LLVM World at "runOnFunction"
+< Hello LLVM World at "runOnFunction"
+---
+> H0: "CAT_execution": CAT_add: 1
+> H0: "CAT_execution": CAT_get: 4
+> H0: "CAT_execution": CAT_new: 3
+> H0: "CAT_execution": CAT_set: 1
+> H0: "CAT_execution": CAT_sub: 1
