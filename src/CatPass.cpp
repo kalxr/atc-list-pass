@@ -41,8 +41,8 @@ namespace {
 
 
       for (auto LS : *loopStructures) {
-        auto listFrontInst = isListLoop(LS);
-        if (listFrontInst != nullptr) {
+        auto [listFrontInst, listNextInst] = isListLoop(LS);
+        if (listFrontInst != nullptr && listNextInst != nullptr) {
 
           auto terminator = LS->getPreHeader()->getTerminator();
           std::vector<Value*> args;
@@ -68,6 +68,22 @@ namespace {
           auto loadI = new LoadInst(IntegerType::get(context, 64), initI, "giraffe", terminator);
           auto cmpI = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT, loadI, listSizeInst, "cmpResult", terminator);
 
+          for (auto exitBlock : predecessors(LS->getHeader())) {
+            if (exitBlock == LS->getPreHeader()) { continue; }
+
+            terminator = exitBlock->getTerminator();
+            auto loadI = new LoadInst(IntegerType::get(context, 64), initI, "loadI", terminator);
+
+            ConstantInt* one = ConstantInt::get(Type::getInt64Ty(context), 1);
+            auto incI = BinaryOperator::Create(Instruction::Add, loadI, one, "incI", terminator);
+
+            auto storeI = new StoreInst(incI, initI, terminator);
+          }
+
+          /* Modifying the compare condition */
+          if (auto branchInst = dyn_cast<BranchInst>(LS->getHeader()->getTerminator())) {
+            branchInst->setCondition(cmpI);
+          }
         }
       }
 
@@ -89,7 +105,7 @@ namespace {
       return true;
     }
 
-    CallInst* isListLoop(LoopStructure* LS) {
+    tuple<CallInst*, CallInst*> isListLoop(LoopStructure* LS) {
       /*
         * Print the first instruction the loop executes.
         */
@@ -99,6 +115,7 @@ namespace {
 
       auto header = LS->getHeader();
       CallInst* listFrontInst;
+      CallInst* listNextInst;
 
       for (auto &inst : *header) {
         errs() << inst << "\n";
@@ -111,7 +128,7 @@ namespace {
             // Verify types of the comparison 
             if (!((isNodePointer(lhs) && isa<llvm::ConstantPointerNull>(rhs)) || 
                  (isNodePointer(rhs) && isa<llvm::ConstantPointerNull>(lhs)))) {
-              return nullptr;
+              return {nullptr, nullptr};
             }
 
             // Get variable for Node in comparison
@@ -141,6 +158,7 @@ namespace {
                     }  
 
                     if (listFrontCall->getCalledFunction()->getName() == "Node_next") {
+                      listNextInst = listFrontCall;
                       isUpdatedWithNext = true;
                     } 
                   }
@@ -149,15 +167,15 @@ namespace {
             }
 
             if (!definedByListFront || !isUpdatedWithNext) {
-              return nullptr;
+              return {nullptr, nullptr};
             }
           }
-          else return nullptr;
+          else return {nullptr, nullptr};
         }
       }
 
       errs() << "found the pattern\n";
-      return listFrontInst;
+      return {listFrontInst, listNextInst};
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {

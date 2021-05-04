@@ -37,7 +37,7 @@ define dso_local i32 @main() #0 {
   %12 = icmp ne %struct.NodeData* %11, null
   %giraffe = load i64, i64* %iiIi
   %cmpResult = icmp ult i64 %giraffe, %siZE
-  br i1 %12, label %13, label %20
+  br i1 %cmpResult, label %13, label %20
 
 13:                                               ; preds = %10
   %14 = load %struct.NodeData*, %struct.NodeData** %3, align 8
@@ -47,6 +47,9 @@ define dso_local i32 @main() #0 {
   %18 = load %struct.NodeData*, %struct.NodeData** %3, align 8
   %19 = call %struct.NodeData* @Node_next(%struct.NodeData* byval(%struct.NodeData) align 8 %18)
   store %struct.NodeData* %19, %struct.NodeData** %3, align 8
+  %loadI = load i64, i64* %iiIi
+  %incI = add i64 %loadI, 1
+  store i64 %incI, i64* %iiIi
   br label %10
 
 20:                                               ; preds = %10
