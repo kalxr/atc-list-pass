@@ -99,6 +99,8 @@ namespace {
             branchInst->setCondition(cmpI);
           }
 
+          // Right now we are just blindly substituting all Node_gets with the array curr node
+          // TODO: How do we figure out that the node in the Node_get is actually the curr node??
           std::vector<Instruction*> instsToReplace;
           for (auto bb : LS->getBasicBlocks()) {
             for (auto &inst : *bb) {
@@ -172,6 +174,10 @@ namespace {
               inst = nodeInst;
             }
 
+            // For now just manually traversing up the tree to see if the node in the null check is 
+            // 1. Defined by listFront
+            // 2. Updated with Node next
+            // TOOD: How to make this more extensible?? Memory alias? generic traversal?
             bool definedByListFront = false;
             bool isUpdatedWithNext = false;
             if (auto loadInst = dyn_cast<LoadInst>(inst)) {
