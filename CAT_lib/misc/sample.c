@@ -19,6 +19,7 @@ int main() {
 
 	Node* curr = List_front(l);
 	while (curr != NULL) {
+		printf("hi there!!");
 		printf("element: %d\n", Node_get(*curr));
 		curr = Node_next(*curr);
 	}

@@ -38,6 +38,7 @@ namespace {
       // auto mainF = fm->getEntryFunction();
 
       auto loopStructures = noelle.getLoopStructures();
+      auto PDG = noelle.getProgramDependenceGraph();
 
 
       for (auto LS : *loopStructures) {
@@ -62,11 +63,24 @@ namespace {
           auto funcListSize = M.getFunction("List_size");
           CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", terminator);
 
-          auto initI = new AllocaInst(IntegerType::get(context, 64), 0, "iiIi", terminator);          
+          auto initI = new AllocaInst(IntegerType::get(context, 64), 0, "iiIi", terminator); 
+
+          ConstantInt* zero = ConstantInt::get(Type::getInt64Ty(context), 0);
+          auto setIZero = new StoreInst(zero, initI, terminator);
 
           terminator = LS->getHeader()->getTerminator();
           auto loadI = new LoadInst(IntegerType::get(context, 64), initI, "giraffe", terminator);
-          auto cmpI = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT, loadI, listSizeInst, "cmpResult", terminator);
+          auto cmpI = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_SLT, loadI, listSizeInst, "cmpResult", terminator);
+
+          // Index into the array and get the current node here
+          // %30 = load i32, i32* %5, align 4 (load i)
+          // %31 = sext i32 %30 to i64 (something??)
+          // %32 = getelementptr inbounds i8*, i8** %29, i64 %31 (get pointer to node in array)
+          std::vector<Value*> indicies = { loadI };
+          auto gep = GetElementPtrInst::CreateInBounds(listToArrayInst, ArrayRef<Value*>(indicies), "element", terminator);
+          // // %33 = load i8*, i8** %32, align 8 (load current node)
+          auto curr = new LoadInst(voidPtr, gep, "curr", terminator);
+
 
           for (auto exitBlock : predecessors(LS->getHeader())) {
             if (exitBlock == LS->getPreHeader()) { continue; }
@@ -83,6 +97,24 @@ namespace {
           /* Modifying the compare condition */
           if (auto branchInst = dyn_cast<BranchInst>(LS->getHeader()->getTerminator())) {
             branchInst->setCondition(cmpI);
+          }
+
+          std::vector<Instruction*> instsToReplace;
+          for (auto bb : LS->getBasicBlocks()) {
+            for (auto &inst : *bb) {
+              if (auto callInst = dyn_cast<CallInst>(&inst)) {
+
+                // perhaps just remove these Node_get with a condition
+                if (callInst->getCalledFunction()->getName() == "Node_get") {
+                  auto targetNode = callInst->getArgOperand(0);
+                  instsToReplace.push_back(callInst);
+                }
+              }
+            }
+          }
+
+          for (auto inst : instsToReplace) {
+            inst->replaceAllUsesWith(curr);
           }
         }
       }

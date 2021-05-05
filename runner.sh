@@ -9,7 +9,7 @@ noelle-norm "$ex".ll -o "$ex".ll;
 noelle-load -S -load ~/CAT/lib/CAT.so -CAT "$ex".ll -o "$ex".ll; 
 
 llc -filetype=obj "$ex".ll;
-clang "$ex".o CAT.c;
+clang -g "$ex".o CAT.c;
 ./a.out;
 
 cd ../..;

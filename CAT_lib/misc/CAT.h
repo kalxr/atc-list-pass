@@ -49,7 +49,7 @@ void* It_next(Iterator* it);
 
 ///////////////////////////////////////////
 
-void* List_to_array(List* l);
+void** List_to_array(List* l);
 
 
 // CATData List_new (void* value, CATData* next, CATData* prev);

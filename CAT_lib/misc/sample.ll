@@ -7,8 +7,9 @@ target triple = "x86_64-unknown-linux-gnu"
 %struct.NodeData = type { i8*, %struct.NodeData*, %struct.NodeData* }
 
 @.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
-@.str.1 = private unnamed_addr constant [13 x i8] c"element: %d\0A\00", align 1
-@.str.2 = private unnamed_addr constant [19 x i8] c"array element: %d\0A\00", align 1
+@.str.1 = private unnamed_addr constant [11 x i8] c"hi there!!\00", align 1
+@.str.2 = private unnamed_addr constant [13 x i8] c"element: %d\0A\00", align 1
+@.str.3 = private unnamed_addr constant [19 x i8] c"array element: %d\0A\00", align 1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local i32 @main() #0 {
@@ -27,65 +28,69 @@ define dso_local i32 @main() #0 {
   %8 = call i32 (i8*, ...) @printf(i8* %7, i64 %6)
   %9 = call %struct.NodeData* @List_front(%struct.List* byval(%struct.List) align 8 %2)
   store %struct.NodeData* %9, %struct.NodeData** %3, align 8
-  %ArrAy = call i8* @List_to_array(%struct.List* %2)
+  %ArrAy = call i8** @List_to_array(%struct.List* %2)
   %siZE = call i64 @List_size(%struct.List* %2)
   %iiIi = alloca i64
+  store i64 0, i64* %iiIi
   br label %10
 
 10:                                               ; preds = %13, %0
   %11 = load %struct.NodeData*, %struct.NodeData** %3, align 8
   %12 = icmp ne %struct.NodeData* %11, null
   %giraffe = load i64, i64* %iiIi
-  %cmpResult = icmp ult i64 %giraffe, %siZE
-  br i1 %cmpResult, label %13, label %20
+  %cmpResult = icmp slt i64 %giraffe, %siZE
+  %element = getelementptr inbounds i8*, i8** %ArrAy, i64 %giraffe
+  %curr = load i8*, i8** %element
+  br i1 %cmpResult, label %13, label %22
 
 13:                                               ; preds = %10
-  %14 = load %struct.NodeData*, %struct.NodeData** %3, align 8
-  %15 = call i8* @Node_get(%struct.NodeData* byval(%struct.NodeData) align 8 %14)
-  %16 = getelementptr [13 x i8], [13 x i8]* @.str.1, i64 0, i64 0
-  %17 = call i32 (i8*, ...) @printf(i8* %16, i8* %15)
-  %18 = load %struct.NodeData*, %struct.NodeData** %3, align 8
-  %19 = call %struct.NodeData* @Node_next(%struct.NodeData* byval(%struct.NodeData) align 8 %18)
-  store %struct.NodeData* %19, %struct.NodeData** %3, align 8
+  %14 = getelementptr [11 x i8], [11 x i8]* @.str.1, i64 0, i64 0
+  %15 = call i32 (i8*, ...) @printf(i8* %14)
+  %16 = load %struct.NodeData*, %struct.NodeData** %3, align 8
+  %17 = call i8* @Node_get(%struct.NodeData* byval(%struct.NodeData) align 8 %16)
+  %18 = getelementptr [13 x i8], [13 x i8]* @.str.2, i64 0, i64 0
+  %19 = call i32 (i8*, ...) @printf(i8* %18, i8* %curr)
+  %20 = load %struct.NodeData*, %struct.NodeData** %3, align 8
+  %21 = call %struct.NodeData* @Node_next(%struct.NodeData* byval(%struct.NodeData) align 8 %20)
+  store %struct.NodeData* %21, %struct.NodeData** %3, align 8
   %loadI = load i64, i64* %iiIi
   %incI = add i64 %loadI, 1
   store i64 %incI, i64* %iiIi
   br label %10
 
-20:                                               ; preds = %10
-  %21 = call i8* @List_to_array(%struct.List* %2)
-  %22 = bitcast i8* %21 to i8**
-  store i8** %22, i8*** %4, align 8
+22:                                               ; preds = %10
+  %23 = call i8** @List_to_array(%struct.List* %2)
+  store i8** %23, i8*** %4, align 8
   store i32 0, i32* %5, align 4
-  br label %23
+  br label %24
 
-23:                                               ; preds = %36, %20
-  %24 = load i32, i32* %5, align 4
-  %25 = sext i32 %24 to i64
-  %26 = call i64 @List_size(%struct.List* byval(%struct.List) align 8 %2)
-  %27 = icmp slt i64 %25, %26
-  br i1 %27, label %28, label %39
+24:                                               ; preds = %37, %22
+  %25 = load i32, i32* %5, align 4
+  %26 = sext i32 %25 to i64
+  %27 = call i64 @List_size(%struct.List* byval(%struct.List) align 8 %2)
+  %28 = icmp slt i64 %26, %27
+  br i1 %28, label %29, label %40
 
-28:                                               ; preds = %23
-  %29 = load i8**, i8*** %4, align 8
-  %30 = load i32, i32* %5, align 4
-  %31 = sext i32 %30 to i64
-  %32 = getelementptr inbounds i8*, i8** %29, i64 %31
-  %33 = load i8*, i8** %32, align 8
-  %34 = getelementptr [19 x i8], [19 x i8]* @.str.2, i64 0, i64 0
-  %35 = call i32 (i8*, ...) @printf(i8* %34, i8* %33)
-  br label %36
+29:                                               ; preds = %24
+  %30 = load i8**, i8*** %4, align 8
+  %31 = load i32, i32* %5, align 4
+  %32 = sext i32 %31 to i64
+  %33 = getelementptr inbounds i8*, i8** %30, i64 %32
+  %34 = load i8*, i8** %33, align 8
+  %35 = getelementptr [19 x i8], [19 x i8]* @.str.3, i64 0, i64 0
+  %36 = call i32 (i8*, ...) @printf(i8* %35, i8* %34)
+  br label %37
 
-36:                                               ; preds = %28
-  %37 = load i32, i32* %5, align 4
-  %38 = add nsw i32 %37, 1
-  store i32 %38, i32* %5, align 4
-  br label %23
+37:                                               ; preds = %29
+  %38 = load i32, i32* %5, align 4
+  %39 = add nsw i32 %38, 1
+  store i32 %39, i32* %5, align 4
+  br label %24
 
-39:                                               ; preds = %23
-  %40 = load i8**, i8*** %4, align 8
-  %41 = bitcast i8** %40 to i8*
-  call void @free(i8* %41) #3
+40:                                               ; preds = %24
+  %41 = load i8**, i8*** %4, align 8
+  %42 = bitcast i8** %41 to i8*
+  call void @free(i8* %42) #3
   ret i32 0
 }
 
@@ -103,7 +108,7 @@ declare dso_local i8* @Node_get(%struct.NodeData* byval(%struct.NodeData) align 
 
 declare dso_local %struct.NodeData* @Node_next(%struct.NodeData* byval(%struct.NodeData) align 8) #1
 
-declare dso_local i8* @List_to_array(%struct.List*) #1
+declare dso_local i8** @List_to_array(%struct.List*) #1
 
 ; Function Attrs: nounwind
 declare dso_local void @free(i8*) #2

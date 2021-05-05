@@ -167,7 +167,7 @@ void* It_next(Iterator* it) {
 	}
 }
 
-void* List_to_array(List* l) {
+void** List_to_array(List* l) {
 	Node* curr = l->front;
 	int i = 0;
 	void** arr = malloc(l->length * sizeof(void*));
