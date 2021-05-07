@@ -38,11 +38,13 @@ namespace {
       // auto mainF = fm->getEntryFunction();
 
       auto loopStructures = noelle.getLoopStructures();
+      auto loops = noelle.getLoops();
       auto PDG = noelle.getProgramDependenceGraph();
 
 
-      for (auto LS : *loopStructures) {
-        auto [listFrontInst, listNextInst] = isListLoop(LS);
+      for (auto loop : *loops) {
+        auto LS = loop->getLoopStructure();
+        auto [listFrontInst, listNextInst] = isListLoop(loop);
         if (listFrontInst != nullptr && listNextInst != nullptr) {
 
           auto terminator = LS->getPreHeader()->getTerminator();
@@ -101,6 +103,8 @@ namespace {
 
           // Right now we are just blindly substituting all Node_gets with the array curr node
           // TODO: How do we figure out that the node in the Node_get is actually the curr node??
+
+          // only modify instructions that are reachable from the SSCDAG
           std::vector<Instruction*> instsToReplace;
           for (auto bb : LS->getBasicBlocks()) {
             for (auto &inst : *bb) {
@@ -139,82 +143,174 @@ namespace {
       return true;
     }
 
-    tuple<CallInst*, CallInst*> isListLoop(LoopStructure* LS) {
-      /*
-        * Print the first instruction the loop executes.
-        */
-      // auto LS = loop->getLoopStructure();
-      auto entryInst = LS->getEntryInstruction();
-      errs() << "Loop " << *entryInst << "\n";
+    // Use the same condition when you're turning the list into an array
 
-      auto header = LS->getHeader();
-      CallInst* listFrontInst;
-      CallInst* listNextInst;
+    // For now just manually traversing up the tree to see if the node in the null check is 
+    // 1. Defined by listFront
+    // 2. Updated with Node next
+    // TOOD: How to make this more extensible?? Memory alias? generic traversal?
 
-      for (auto &inst : *header) {
-        errs() << inst << "\n";
+    // SCCDAG of 1, 2, 3, 5
+    // 0 is front
 
-        if (auto cmpInst = dyn_cast<CmpInst>(&inst)) {
-          if (cmpInst->getPredicate() == llvm::CmpInst::ICMP_NE) {
-            Value* lhs = cmpInst->getOperand(0);
-            Value* rhs = cmpInst->getOperand(1);
+    // 1 is phi with 2 entries (front, next) - and this is a source of the DAG
+    // 2 the compare
+    // 3 the break
+    // 4 is body of the loop
+    // 5 call to next
+    // LoopDependenceInfo can give you the SCCDAG
+    // data dependence between 0
 
-            // Verify types of the comparison 
-            if (!((isNodePointer(lhs) && isa<llvm::ConstantPointerNull>(rhs)) || 
-                 (isNodePointer(rhs) && isa<llvm::ConstantPointerNull>(lhs)))) {
-              return {nullptr, nullptr};
-            }
+    // 0 and 5 MUST alias (or data dependence- probably this)
+    // no MAY data dependence between 0 or 5 AND any instruction of the loop
 
-            // Get variable for Node in comparison
-            Instruction* inst;
-            if (Instruction* nodeInst = dyn_cast<Instruction>(lhs)) {
-              inst = nodeInst;
-            }
-            if (Instruction* nodeInst = dyn_cast<Instruction>(rhs)) {
-              inst = nodeInst;
-            }
+    tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop) {
+      auto LS = loop->getLoopStructure();
+      auto sccManager = loop->getSCCManager();
+      auto sccdag = sccManager->getSCCDAG();
+      errs() << "   New SCCDAG\n";
 
-            // For now just manually traversing up the tree to see if the node in the null check is 
-            // 1. Defined by listFront
-            // 2. Updated with Node next
-            // TOOD: How to make this more extensible?? Memory alias? generic traversal?
-            bool definedByListFront = false;
-            bool isUpdatedWithNext = false;
-            if (auto loadInst = dyn_cast<LoadInst>(inst)) {
-              auto pointerOperand = loadInst->getPointerOperand();
+      auto phiNodePassed = false;
 
-              for (auto user : pointerOperand->users()) {
-                if (auto storeInst = dyn_cast<StoreInst>(user)) {
-                  auto storedValue = storeInst->getOperand(0);
-                  
-                  if (auto listFrontCall = dyn_cast<CallInst>(storedValue)) {
-                    if (listFrontCall->getCalledFunction()->getName() == "List_front") {
-                      definedByListFront = true;
-                      listFrontInst = listFrontCall;
-                      errs() << "lookee here1    " << *listFrontCall << "\n";
-                      errs() << "lookee here2    " << *listFrontInst << "\n";
-                    }  
+      auto topLevelNodes = sccdag->getTopLevelNodes();
 
-                    if (listFrontCall->getCalledFunction()->getName() == "Node_next") {
-                      listNextInst = listFrontCall;
-                      isUpdatedWithNext = true;
-                    } 
-                  }
-                }
-              }
-            }
-
-            if (!definedByListFront || !isUpdatedWithNext) {
-              return {nullptr, nullptr};
-            }
+      auto sccIterator = [sccManager, topLevelNodes, phiNodePassed](SCC *scc) -> bool {
+        errs() << "   New SCC\n";
+        auto isTopNode = false;
+        for (auto node : topLevelNodes) {
+          if (node->getT() == scc) { 
+            errs() << "Found top level node\n";
+            isTopNode = true; 
+            break;
           }
-          else return {nullptr, nullptr};
         }
+
+        /*
+          * Print the instructions that compose the SCC.
+          */
+        errs() << "     Instructions:\n";
+        auto mySCCIter = [isTopNode, phiNodePassed](Instruction *inst) mutable -> bool {
+          errs() << "       " << *inst << "\n";
+
+          // Make sure phi node has 2 args to List_front and Node_get
+          if (auto phiNode = dyn_cast<PHINode>(inst)) {
+            if (phiNode->getNumIncomingValues() != 2) {
+              return false;
+            }
+
+            std::string firstName;
+            std::string secondName;
+            if (auto callInst = dyn_cast<CallInst>(phiNode->getIncomingValue(0))) {
+              firstName = callInst->getCalledFunction()->getName();
+            }
+            if (auto callInst = dyn_cast<CallInst>(phiNode->getIncomingValue(1))) {
+              secondName = callInst->getCalledFunction()->getName();
+            }
+            if (firstName == "List_front" && secondName != "Node_next") {
+              return false;
+            }
+            if (firstName == "Node_next" && secondName != "List_front") {
+              return false;
+            }
+            if (!isTopNode) {
+              return false;
+            }
+
+            phiNodePassed = true;
+          }
+
+          return false;
+        };
+        scc->iterateOverInstructions(mySCCIter);
+
+        return false;
+      };
+
+      sccdag->iterateOverSCCs(sccIterator);
+
+      // TODO add all checks
+      if (phiNodePassed) {
+        // TODO return our actual tuple here
+        return {nullptr, nullptr};
       }
 
-      errs() << "found the pattern\n";
-      return {listFrontInst, listNextInst};
+      return {nullptr, nullptr};
     }
+
+    // tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop) {
+    //   /*
+    //     * Print the first instruction the loop executes.
+    //     */
+    //   auto LS = loop->getLoopStructure();
+
+    //   auto entryInst = LS->getEntryInstruction();
+    //   errs() << "Loop " << *entryInst << "\n";
+
+    //   auto header = LS->getHeader();
+    //   CallInst* listFrontInst;
+    //   CallInst* listNextInst;
+
+    //   for (auto &inst : *header) {
+    //     errs() << inst << "\n";
+
+    //     if (auto cmpInst = dyn_cast<CmpInst>(&inst)) {
+    //       if (cmpInst->getPredicate() == llvm::CmpInst::ICMP_NE) {
+    //         Value* lhs = cmpInst->getOperand(0);
+    //         Value* rhs = cmpInst->getOperand(1);
+
+    //         // Verify types of the comparison 
+    //         if (!((isNodePointer(lhs) && isa<llvm::ConstantPointerNull>(rhs)) || 
+    //              (isNodePointer(rhs) && isa<llvm::ConstantPointerNull>(lhs)))) {
+    //           return {nullptr, nullptr};
+    //         }
+
+    //         // Get variable for Node in comparison
+    //         Instruction* inst;
+    //         if (Instruction* nodeInst = dyn_cast<Instruction>(lhs)) {
+    //           inst = nodeInst;
+    //         }
+    //         if (Instruction* nodeInst = dyn_cast<Instruction>(rhs)) {
+    //           inst = nodeInst;
+    //         }
+
+           
+    //         bool definedByListFront = false;
+    //         bool isUpdatedWithNext = false;
+    //         if (auto loadInst = dyn_cast<LoadInst>(inst)) {
+    //           auto pointerOperand = loadInst->getPointerOperand();
+
+    //           for (auto user : pointerOperand->users()) {
+    //             if (auto storeInst = dyn_cast<StoreInst>(user)) {
+    //               auto storedValue = storeInst->getOperand(0);
+                  
+    //               if (auto listFrontCall = dyn_cast<CallInst>(storedValue)) {
+    //                 if (listFrontCall->getCalledFunction()->getName() == "List_front") {
+    //                   definedByListFront = true;
+    //                   listFrontInst = listFrontCall;
+    //                   errs() << "lookee here1    " << *listFrontCall << "\n";
+    //                   errs() << "lookee here2    " << *listFrontInst << "\n";
+    //                 }  
+
+    //                 if (listFrontCall->getCalledFunction()->getName() == "Node_next") {
+    //                   listNextInst = listFrontCall;
+    //                   isUpdatedWithNext = true;
+    //                 } 
+    //               }
+    //             }
+    //           }
+    //         }
+
+    //         if (!definedByListFront || !isUpdatedWithNext) {
+    //           return {nullptr, nullptr};
+    //         }
+    //       }
+    //       else return {nullptr, nullptr};
+    //     }
+    //   }
+
+    //   errs() << "found the pattern\n";
+    //   return {listFrontInst, listNextInst};
+    // }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.addRequired<Noelle>();
