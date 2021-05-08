@@ -41,11 +41,16 @@ namespace {
       auto loops = noelle.getLoops();
       auto PDG = noelle.getProgramDependenceGraph();
 
-
       for (auto loop : *loops) {
         auto LS = loop->getLoopStructure();
-        auto [listFrontInst, listNextInst] = isListLoop(loop);
+        auto [listFrontInst, listNextInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr) {
+
+          // TODO for transformations
+          // make PHINode BE i
+          // remove our own outdated code
+          // remove dead code
+          // benchmark (some point)
 
           auto terminator = LS->getPreHeader()->getTerminator();
           std::vector<Value*> args;
@@ -164,32 +169,37 @@ namespace {
     // 0 and 5 MUST alias (or data dependence- probably this)
     // no MAY data dependence between 0 or 5 AND any instruction of the loop
 
-    tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop) {
+    tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop, PDG* pdg) {
       auto LS = loop->getLoopStructure();
       auto sccManager = loop->getSCCManager();
       auto sccdag = sccManager->getSCCDAG();
       errs() << "   New SCCDAG\n";
 
       auto phiNodePassed = false;
+      auto cmpInstPassed = false;
+      auto nodeNextPassed = false;
+
+      CallInst* listFront;
+      CallInst* nodeNext;
+      PHINode* phiphi;
 
       auto topLevelNodes = sccdag->getTopLevelNodes();
 
-      auto sccIterator = [sccManager, topLevelNodes, phiNodePassed](SCC *scc) -> bool {
+      auto sccIterator = [&](SCC *scc) -> bool {
         errs() << "   New SCC\n";
-        auto isTopNode = false;
         for (auto node : topLevelNodes) {
           if (node->getT() == scc) { 
             errs() << "Found top level node\n";
-            isTopNode = true; 
             break;
           }
+          return false;
         }
 
         /*
           * Print the instructions that compose the SCC.
           */
         errs() << "     Instructions:\n";
-        auto mySCCIter = [isTopNode, phiNodePassed](Instruction *inst) mutable -> bool {
+        auto mySCCIter = [&](Instruction *inst) mutable -> bool {
           errs() << "       " << *inst << "\n";
 
           // Make sure phi node has 2 args to List_front and Node_get
@@ -200,23 +210,56 @@ namespace {
 
             std::string firstName;
             std::string secondName;
-            if (auto callInst = dyn_cast<CallInst>(phiNode->getIncomingValue(0))) {
-              firstName = callInst->getCalledFunction()->getName();
+            auto firstCallInst = dyn_cast<CallInst>(phiNode->getIncomingValue(0));
+            auto secondCallInst = dyn_cast<CallInst>(phiNode->getIncomingValue(1));
+            if (firstCallInst) {
+              firstName = firstCallInst->getCalledFunction()->getName();
             }
-            if (auto callInst = dyn_cast<CallInst>(phiNode->getIncomingValue(1))) {
-              secondName = callInst->getCalledFunction()->getName();
+            if (secondCallInst) {
+              secondName = secondCallInst->getCalledFunction()->getName();
             }
-            if (firstName == "List_front" && secondName != "Node_next") {
-              return false;
+            if (firstName == "List_front" && secondName == "Node_next") {
+              listFront = firstCallInst;
+              nodeNext = secondCallInst;
             }
-            if (firstName == "Node_next" && secondName != "List_front") {
-              return false;
+            else if (firstName == "Node_next" && secondName == "List_front") {
+              nodeNext = firstCallInst;
+              listFront = secondCallInst;
             }
-            if (!isTopNode) {
+            else return false;
+
+            // Condition 2
+            if (nodeNext->getArgOperand(0) != phiNode) {
               return false;
             }
 
             phiNodePassed = true;
+            phiphi = phiNode;
+
+          }
+
+          // Compare Inst check
+          if (auto cmpInst = dyn_cast<CmpInst>(inst)) {
+            if (cmpInst->getPredicate() == llvm::CmpInst::ICMP_NE) {
+
+              Value* lhs = cmpInst->getOperand(0);
+              Value* rhs = cmpInst->getOperand(1);
+
+              // Verify types of the comparison 
+              if (!((isNodePointer(lhs) && isa<llvm::ConstantPointerNull>(rhs)) || 
+                  (isNodePointer(rhs) && isa<llvm::ConstantPointerNull>(lhs)))) {
+                return false;
+              }
+              cmpInstPassed = true;              
+            }          
+          }
+
+          // Node_next check
+          if (auto callInst = dyn_cast<CallInst>(inst)) {
+            if (callInst->getCalledFunction()->getName() != "Node_next") {
+              return false;
+            }
+            nodeNextPassed = true;
           }
 
           return false;
@@ -228,10 +271,35 @@ namespace {
 
       sccdag->iterateOverSCCs(sccIterator);
 
-      // TODO add all checks
-      if (phiNodePassed) {
-        // TODO return our actual tuple here
-        return {nullptr, nullptr};
+      errs() << "phi: " << phiNodePassed << "\n";
+      errs() << "cmp: " << cmpInstPassed << "\n";
+      errs() << "next: " << nodeNextPassed << "\n";
+
+      
+      if (phiNodePassed && cmpInstPassed && nodeNextPassed) {   
+
+        // Condtion 1 satisfied - move on to condition 2
+        // jk lol
+        // jk not lol
+        bool badDeps = false;
+        auto dependenceIter = [&](Value* to, DGEdge<Value>* dep) -> bool {
+          if (auto inst = dyn_cast<Instruction>(to)) {
+            if (to != phiphi && !dep->isMemoryDependence() && LS->isIncluded(inst)) {
+              errs() << dep->toString() << "\n" << *to << "\n\n";
+              badDeps = true;
+              return false;
+            }
+          }          
+          return false;
+        };
+
+        errs() << "Gonna iterate to" << *listFront << "\n";
+        pdg->iterateOverDependencesFrom(nodeNext, false, true, true, dependenceIter);
+
+        if (!badDeps) {
+          errs() << "FOUND A LOOP\n";
+          return {listFront, nodeNext};
+        }
       }
 
       return {nullptr, nullptr};
