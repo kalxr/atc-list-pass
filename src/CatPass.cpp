@@ -7,6 +7,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Value.h"
+#include <set>
 
 #include "Noelle.hpp"
 
@@ -43,66 +44,61 @@ namespace {
 
       for (auto loop : *loops) {
         auto LS = loop->getLoopStructure();
-        auto [listFrontInst, listNextInst] = isListLoop(loop, PDG);
-        if (listFrontInst != nullptr && listNextInst != nullptr) {
+        auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
+        if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
 
           // TODO for transformations
-          // make PHINode BE i
-          // remove our own outdated code
-          // remove dead code
+          // [DONE] make PHINode BE i
+          // [DONE] remove our own outdated code
+          // [DONE] remove dead code
           // benchmark (some point)
 
-          auto terminator = LS->getPreHeader()->getTerminator();
-          std::vector<Value*> args;
+          std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst };
 
           auto voidPtr = PointerType::get(IntegerType::get(context, 8), 0);
           auto voidPtrPtr = PointerType::get(voidPtr, 0);
-          auto structPtr = PointerType::get(StructType::get(context, "List"), 0);
-
-          // Doesn't work yet
-          auto func = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr);
-
-          // Does work if we call List_to_array in sample.c
-          auto func_list_to_array = M.getFunction("List_to_array");
-          args.push_back(llvm::cast<Value>(listFrontInst->getArgOperand(0)));          
-          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", terminator);
-          
-          auto funcListSize = M.getFunction("List_size");
-          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", terminator);
-
-          auto initI = new AllocaInst(IntegerType::get(context, 64), 0, "iiIi", terminator); 
-
           ConstantInt* zero = ConstantInt::get(Type::getInt64Ty(context), 0);
-          auto setIZero = new StoreInst(zero, initI, terminator);
+          ConstantInt* one = ConstantInt::get(Type::getInt64Ty(context), 1);
 
-          terminator = LS->getHeader()->getTerminator();
-          auto loadI = new LoadInst(IntegerType::get(context, 64), initI, "giraffe", terminator);
-          auto cmpI = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_SLT, loadI, listSizeInst, "cmpResult", terminator);
+          /* Inserting array transformation, call to size in preheader */
+          auto preHeaderBlock = LS->getPreHeader()->getTerminator();
+          std::vector<Value*> args;
 
-          // Index into the array and get the current node here
-          // %30 = load i32, i32* %5, align 4 (load i)
-          // %31 = sext i32 %30 to i64 (something??)
-          // %32 = getelementptr inbounds i8*, i8** %29, i64 %31 (get pointer to node in array)
-          std::vector<Value*> indicies = { loadI };
-          auto gep = GetElementPtrInst::CreateInBounds(listToArrayInst, ArrayRef<Value*>(indicies), "element", terminator);
-          // // %33 = load i8*, i8** %32, align 8 (load current node)
-          auto curr = new LoadInst(voidPtr, gep, "curr", terminator);
+          args.push_back(listFrontInst->getArgOperand(0));  
+          auto structPtr = listFrontInst->getArgOperand(0)->getType();
 
+          auto func_list_to_array = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr).getCallee();
+          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", preHeaderBlock);
+          
+          auto funcListSize = M.getOrInsertFunction("List_size", IntegerType::get(context, 64), structPtr).getCallee();
+          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", preHeaderBlock); 
 
+          /* Inserting a new phiNode for I counter in the header */
+          auto headerBlock = LS->getHeader()->getTerminator();
+
+          auto phiNodeI = PHINode::Create(Type::getInt64Ty(context), 2, "phiI", phiNodeInst);
+          phiNodeI->addIncoming(zero, LS->getPreHeader());
+
+          auto cmpI = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_SLT, phiNodeI, listSizeInst, "cmpResult", headerBlock);
+
+          /* Index into the array and get the current node here, in the header */
+          auto gep = GetElementPtrInst::CreateInBounds(listToArrayInst, ArrayRef<Value*>({ phiNodeI }), "element", headerBlock);
+          auto currValue = new LoadInst(voidPtr, gep, "curr", headerBlock);
+
+          /* Add an increment to i in same block as Node_next */
           for (auto exitBlock : predecessors(LS->getHeader())) {
             if (exitBlock == LS->getPreHeader()) { continue; }
 
-            terminator = exitBlock->getTerminator();
-            auto loadI = new LoadInst(IntegerType::get(context, 64), initI, "loadI", terminator);
-
-            ConstantInt* one = ConstantInt::get(Type::getInt64Ty(context), 1);
-            auto incI = BinaryOperator::Create(Instruction::Add, loadI, one, "incI", terminator);
-
-            auto storeI = new StoreInst(incI, initI, terminator);
+            auto nodeNextBlock = exitBlock->getTerminator();
+            auto incI = BinaryOperator::Create(Instruction::Add, phiNodeI, one, "incI", nodeNextBlock);
+            phiNodeI->addIncoming(incI, listNextInst->getParent());
           }
 
           /* Modifying the compare condition */
           if (auto branchInst = dyn_cast<BranchInst>(LS->getHeader()->getTerminator())) {
+            if (auto cmpInst = dyn_cast<Instruction>(branchInst->getCondition())) {
+              instsToDelete.insert(cmpInst);
+            }
             branchInst->setCondition(cmpI);
           }
 
@@ -119,17 +115,21 @@ namespace {
                 if (callInst->getCalledFunction()->getName() == "Node_get") {
                   auto targetNode = callInst->getArgOperand(0);
                   instsToReplace.push_back(callInst);
+                  instsToDelete.insert(callInst);
                 }
               }
             }
           }
 
           for (auto inst : instsToReplace) {
-            inst->replaceAllUsesWith(curr);
+            inst->replaceAllUsesWith(currValue);
+          }
+
+          for (auto inst : instsToDelete) {
+            inst->eraseFromParent();
           }
         }
       }
-
 
       return false;
     }
@@ -169,11 +169,11 @@ namespace {
     // 0 and 5 MUST alias (or data dependence- probably this)
     // no MAY data dependence between 0 or 5 AND any instruction of the loop
 
-    tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop, PDG* pdg) {
+    tuple<CallInst*, CallInst*, PHINode*> isListLoop(LoopDependenceInfo* loop, PDG* pdg) {
       auto LS = loop->getLoopStructure();
       auto sccManager = loop->getSCCManager();
       auto sccdag = sccManager->getSCCDAG();
-      errs() << "   New SCCDAG\n";
+      // errs() << "   New SCCDAG\n";
 
       auto phiNodePassed = false;
       auto cmpInstPassed = false;
@@ -186,10 +186,10 @@ namespace {
       auto topLevelNodes = sccdag->getTopLevelNodes();
 
       auto sccIterator = [&](SCC *scc) -> bool {
-        errs() << "   New SCC\n";
+        // errs() << "   New SCC\n";
         for (auto node : topLevelNodes) {
           if (node->getT() == scc) { 
-            errs() << "Found top level node\n";
+            // errs() << "Found top level node\n";
             break;
           }
           return false;
@@ -198,9 +198,9 @@ namespace {
         /*
           * Print the instructions that compose the SCC.
           */
-        errs() << "     Instructions:\n";
+        // errs() << "     Instructions:\n";
         auto mySCCIter = [&](Instruction *inst) mutable -> bool {
-          errs() << "       " << *inst << "\n";
+          // errs() << "       " << *inst << "\n";
 
           // Make sure phi node has 2 args to List_front and Node_get
           if (auto phiNode = dyn_cast<PHINode>(inst)) {
@@ -271,9 +271,9 @@ namespace {
 
       sccdag->iterateOverSCCs(sccIterator);
 
-      errs() << "phi: " << phiNodePassed << "\n";
-      errs() << "cmp: " << cmpInstPassed << "\n";
-      errs() << "next: " << nodeNextPassed << "\n";
+      // errs() << "phi: " << phiNodePassed << "\n";
+      // errs() << "cmp: " << cmpInstPassed << "\n";
+      // errs() << "next: " << nodeNextPassed << "\n";
 
       
       if (phiNodePassed && cmpInstPassed && nodeNextPassed) {   
@@ -285,7 +285,6 @@ namespace {
         auto dependenceIter = [&](Value* to, DGEdge<Value>* dep) -> bool {
           if (auto inst = dyn_cast<Instruction>(to)) {
             if (to != phiphi && !dep->isMemoryDependence() && LS->isIncluded(inst)) {
-              errs() << dep->toString() << "\n" << *to << "\n\n";
               badDeps = true;
               return false;
             }
@@ -293,16 +292,15 @@ namespace {
           return false;
         };
 
-        errs() << "Gonna iterate to" << *listFront << "\n";
         pdg->iterateOverDependencesFrom(nodeNext, false, true, true, dependenceIter);
 
         if (!badDeps) {
           errs() << "FOUND A LOOP\n";
-          return {listFront, nodeNext};
+          return {listFront, nodeNext, phiphi};
         }
       }
 
-      return {nullptr, nullptr};
+      return {nullptr, nullptr, nullptr};
     }
 
     // tuple<CallInst*, CallInst*> isListLoop(LoopDependenceInfo* loop) {

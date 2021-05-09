@@ -25,8 +25,8 @@ struct List List_new() {
 	return (List) *l;
 }
 
-Node* List_front(List l) {
-	return l.front;
+Node* List_front(List* l) {
+	return l->front;
 }
 
 Node* List_back(List l) {
@@ -131,8 +131,8 @@ void* Node_get(Node n) {
 	return n.value;
 }
 
-int64_t List_size(List l) {
-	return l.length;
+int64_t List_size(List* l) {
+	return l->length;
 }
 
 int List_empty(List l) {

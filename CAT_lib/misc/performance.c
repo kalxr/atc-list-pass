@@ -10,13 +10,18 @@ int main() {
 	List_push_back(&l, 10);
 	List_push_back(&l, 9);
 
-	printf("%d\n", List_size(l));
+	for (auto i = 0; i < 10000; i++) {
+		List_push_back(&l, i);
+	}
 
+    int64_t counter = 0;
 	Node* curr = List_front(&l);
 	while (curr != NULL) {
-		printf("element: %d\n", Node_get(*curr));
+		counter += Node_get(*curr);
 		curr = Node_next(*curr);
 	}
+
+    printf("counter: %d\n", counter);
 
 	return 0;
 }
