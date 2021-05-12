@@ -47,11 +47,9 @@ namespace {
         auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
 
-          // TODO for transformations
-          // [DONE] make PHINode BE i
-          // [DONE] remove our own outdated code
-          // [DONE] remove dead code
-          // benchmark (some point)
+          // TODO
+          // Reset performance to "normal" loop, try to lift List_to_array and List_size
+          // 3 different benchmarks
 
           std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst };
 
@@ -68,12 +66,13 @@ namespace {
           auto structPtr = listFrontInst->getArgOperand(0)->getType();
 
           auto func_list_to_array = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr).getCallee();
-          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", preHeaderBlock);
+          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", listFrontInst);
           
           auto funcListSize = M.getOrInsertFunction("List_size", IntegerType::get(context, 64), structPtr).getCallee();
-          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", preHeaderBlock); 
+          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", listFrontInst); 
 
           /* Inserting a new phiNode for I counter in the header */
+          errs() << "Inserting a new phiNode\n";
           auto headerBlock = LS->getHeader()->getTerminator();
 
           auto phiNodeI = PHINode::Create(Type::getInt64Ty(context), 2, "phiI", phiNodeInst);
@@ -86,6 +85,7 @@ namespace {
           auto currValue = new LoadInst(voidPtr, gep, "curr", headerBlock);
 
           /* Add an increment to i in same block as Node_next */
+          errs() << "Add increment i inst\n";
           for (auto exitBlock : predecessors(LS->getHeader())) {
             if (exitBlock == LS->getPreHeader()) { continue; }
 
@@ -173,7 +173,7 @@ namespace {
       auto LS = loop->getLoopStructure();
       auto sccManager = loop->getSCCManager();
       auto sccdag = sccManager->getSCCDAG();
-      // errs() << "   New SCCDAG\n";
+      errs() << "   New SCCDAG\n";
 
       auto phiNodePassed = false;
       auto cmpInstPassed = false;
@@ -186,10 +186,10 @@ namespace {
       auto topLevelNodes = sccdag->getTopLevelNodes();
 
       auto sccIterator = [&](SCC *scc) -> bool {
-        // errs() << "   New SCC\n";
+        errs() << "   New SCC\n";
         for (auto node : topLevelNodes) {
           if (node->getT() == scc) { 
-            // errs() << "Found top level node\n";
+            errs() << "Found top level node\n";
             break;
           }
           return false;
@@ -200,7 +200,7 @@ namespace {
           */
         // errs() << "     Instructions:\n";
         auto mySCCIter = [&](Instruction *inst) mutable -> bool {
-          // errs() << "       " << *inst << "\n";
+          errs() << "       " << *inst << "\n";
 
           // Make sure phi node has 2 args to List_front and Node_get
           if (auto phiNode = dyn_cast<PHINode>(inst)) {

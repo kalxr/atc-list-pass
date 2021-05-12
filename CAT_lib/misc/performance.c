@@ -10,18 +10,20 @@ int main() {
 	List_push_back(&l, 10);
 	List_push_back(&l, 9);
 
-	for (auto i = 0; i < 10000; i++) {
+	for (auto i = 0; i < 1000000; i++) {
 		List_push_back(&l, i);
 	}
 
-    int64_t counter = 0;
-	Node* curr = List_front(&l);
-	while (curr != NULL) {
-		counter += Node_get(*curr);
-		curr = Node_next(*curr);
+	Node* front = List_front(&l);
+	for (auto j = 0; j < 1000; j++) {
+		int64_t counter = 0;
+		Node* curr = front;
+		while (curr != NULL) {
+			counter += Node_get(*curr);
+			curr = Node_next(*curr);
+		}
+		// printf("counter: %d\n", counter);
 	}
-
-    printf("counter: %d\n", counter);
 
 	return 0;
 }
