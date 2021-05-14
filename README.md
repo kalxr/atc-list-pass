@@ -29,8 +29,6 @@ cool - 0.56428 +- 0.00252 seconds time elapsed  ( +-  0.45% )
 
 
 
-
-
 # LLVM_middleend_template
 
 This is the template to use for assignments of the Code Analysis and Transformation class at Northwestern University.
