@@ -1,0 +1,2 @@
+/home/kam9807/CAT/bin/cat-c
+/home/kam9807/CAT/lib/CAT.so

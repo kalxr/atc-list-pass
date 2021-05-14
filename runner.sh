@@ -1,10 +1,10 @@
 cd CAT_lib/misc;
 
-filename="performance.c"
+filename="performance1.c"
 ex=$(echo "$filename" | cut -f 1 -d '.')
 
-clang -O1 $filename CAT.c;
-perf stat -e cache-misses ./a.out;
+#clang -O1 $filename CAT.c;
+#perf stat -r 10 -e cache-misses ./a.out;
 
 ### APPLY TRANSFORMATION ###
 
@@ -16,6 +16,7 @@ noelle-load -S -load ~/CAT/lib/CAT.so -CAT "$ex".ll -o "$ex".ll;
 
 llc -filetype=obj "$ex".ll;
 clang -g "$ex".o CAT.c;
-perf stat -e cache-misses ./a.out;
+#perf stat -r 10 -e cache-misses ./a.out;
+./a.out
 
 cd ../..;

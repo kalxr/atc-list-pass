@@ -24,8 +24,8 @@ typedef struct NodeData {
 
 List List_new();
 
-Node* List_front(List* l);
-Node* List_back(List l);
+Node* List_front(const List* l);
+Node* List_back(const List* l);
 
 void List_push_front(List* l, void* value);
 void List_push_back(List* l, void* value);
@@ -37,7 +37,7 @@ Node* Node_next(Node n);
 Node* Node_prev(Node n);
 void* Node_get(Node n);
 
-int64_t List_size(List* l);
+int64_t List_size(const List* l);
 int List_empty(List l);
 
 ///////////////////////////////////////////
@@ -49,7 +49,7 @@ void* It_next(Iterator* it);
 
 ///////////////////////////////////////////
 
-void** List_to_array(List* l);
+void** List_to_array(const List* l);
 
 
 // CATData List_new (void* value, CATData* next, CATData* prev);

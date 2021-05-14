@@ -49,7 +49,7 @@ namespace {
 
           // TODO
           // Reset performance to "normal" loop, try to lift List_to_array and List_size
-          // 3 different benchmarks
+          // [DONE] 3 different benchmarks
 
           std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst };
 
@@ -130,6 +130,62 @@ namespace {
           }
         }
       }
+
+      // loops = noelle.getLoops();
+
+      // for (auto loop : *loops) {
+      //   errs() << " Invariants\n";
+      //   auto IM = loop->getInvariantManager();
+      //   for (auto inv : IM->getLoopInstructionsThatAreLoopInvariants()){
+      //     errs() << "   " << *inv << "\n";
+      //   }
+      // }
+
+      // Hoist List_to_array and List_size
+      // 
+      // Reaching definition - do it
+      // look at in-set for list_to_array. if elements are in my loop no hoist. Else hoist and repeat
+      // if your loop modifies list DO NOT transform
+
+      auto dfe = noelle.getDataFlowEngine();
+
+      auto computeGEN = [](Instruction *i, DataFlowResult *df) {
+        if (!isa<LoadInst>(i)){
+          return ;
+        }
+        auto& gen = df->GEN(i);
+        gen.insert(i);
+        return ;
+      };
+      auto computeKILL = [](Instruction *, DataFlowResult *) {
+        return ;
+      };
+      auto computeOUT = [](std::set<Value *>& OUT, Instruction *succ, DataFlowResult *df) {
+        auto& inS = df->IN(succ);
+        OUT.insert(inS.begin(), inS.end());
+        return ;
+      } ;
+      auto computeIN = [](std::set<Value *>& IN, Instruction *inst, DataFlowResult *df) {
+        auto& genI = df->GEN(inst);
+        auto& outI = df->OUT(inst);
+        IN.insert(outI.begin(), outI.end());
+        IN.insert(genI.begin(), genI.end());
+        return ;
+      };
+
+      /*
+       * Run the data flow analysis
+       */
+      auto customDfr = dfe.applyBackward(
+        mainF,
+        computeGEN, 
+        computeKILL, 
+        computeIN, 
+        computeOUT
+        );
+
+
+
 
       return false;
     }

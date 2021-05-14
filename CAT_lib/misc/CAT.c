@@ -25,12 +25,12 @@ struct List List_new() {
 	return (List) *l;
 }
 
-Node* List_front(List* l) {
+Node* List_front(const List* l) {
 	return l->front;
 }
 
-Node* List_back(List l) {
-	return l.back;
+Node* List_back(const List* l) {
+	return l->back;
 }
 
 void List_push_front(List* l, void* value) {
@@ -131,7 +131,7 @@ void* Node_get(Node n) {
 	return n.value;
 }
 
-int64_t List_size(List* l) {
+int64_t List_size(const List* l) {
 	return l->length;
 }
 
@@ -167,7 +167,7 @@ void* It_next(Iterator* it) {
 	}
 }
 
-void** List_to_array(List* l) {
+void** List_to_array(const List* l) {
 	Node* curr = l->front;
 	int i = 0;
 	void** arr = malloc(l->length * sizeof(void*));
