@@ -23,9 +23,13 @@
 
 // TODO
 // 1. Automatic hoisting
+// 1b. Needs to be recursive + check for most conservative place to put this
 // 2. Where does improvement come from
 // 3. Try to get rid  of list completely, only use array
 // 4. Trie library, with small trie program
+
+// Questions
+// what do bitcast instructions do?
 
 using namespace llvm::noelle ;
 
@@ -91,11 +95,6 @@ namespace {
         errs() << " Nesting level = " << LS->getNestingLevel() << "\n";
         errs() << " This loop has " << LS->getNumberOfSubLoops() << " sub-loops (including sub-loops of sub-loops)\n";
 
-        auto loopParent = LS->getParentLoop();
-        if (loopParent != NULL) {
-          errs() << "got parent loop!\n";
-        }
-
         auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
 
@@ -106,28 +105,60 @@ namespace {
           ConstantInt* zero = ConstantInt::get(Type::getInt64Ty(context), 0);
           ConstantInt* one = ConstantInt::get(Type::getInt64Ty(context), 1);
 
-
           /*
            * Hoisting
            */
 
-          
-
           auto pdg = noelle.getProgramDependenceGraph();
           auto listValue = listFrontInst->getArgOperand(0);
+
+          Instruction* arrayTransformPosition = nullptr;
           if (auto listInst = dyn_cast<Instruction>(listValue)) {
             errs() << "Getting deps for listInst\n";
             auto dependenceIter = [&](Value* from, DGEdge<Value>* dep) -> bool {
               if (auto inst = dyn_cast<Instruction>(from)) {
+
+                if (auto callInst = dyn_cast<CallInst>(inst)) {
+                  auto funcName = callInst->getCalledFunction()->getName();
+                  if (funcName == "List_new" || funcName == "List_size" || funcName == "List_front") {
+                    return false;
+                  }
+                }
+
+                if (auto bitcast = dyn_cast<BitCastInst>(inst)) {
+                  return false;
+                }
+
                 errs() << "Dep: " << *inst << "\n";
 
-                
+                // TODO this needs to be recursive + check for most conservative place to put this
+                if (LS->isIncluded(inst)) {
+                  return true;
+                }
+
+                auto loopParent = LS->getParentLoop();
+                if (loopParent != NULL) {
+                  if (loopParent->isIncluded(inst)) {
+                    arrayTransformPosition = LS->getPreHeader()->getTerminator();
+                    return false;
+                  } else {
+                    arrayTransformPosition = loopParent->getPreHeader()->getTerminator();
+                    return false;
+                  }
+                } else {
+                  arrayTransformPosition = LS->getPreHeader()->getTerminator();
+                  return false;
+                }
 
               }          
               return false;
             };
 
             pdg->iterateOverDependencesFrom(listInst, true, true, true, dependenceIter);
+          }
+
+          if (arrayTransformPosition == nullptr) {
+            continue;
           }
 
           
@@ -140,10 +171,10 @@ namespace {
           auto structPtr = listFrontInst->getArgOperand(0)->getType();
 
           auto func_list_to_array = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr).getCallee();
-          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", listFrontInst);
+          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", arrayTransformPosition);
           
           auto funcListSize = M.getOrInsertFunction("List_size", IntegerType::get(context, 64), structPtr).getCallee();
-          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", listFrontInst); 
+          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", arrayTransformPosition); 
 
           /* Inserting a new phiNode for I counter in the header */
           errs() << "Inserting a new phiNode\n";

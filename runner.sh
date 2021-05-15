@@ -14,7 +14,8 @@ clang -O1 -S -emit-llvm -Xclang -disable-llvm-passes -fdeclspec $filename -o "$e
 noelle-norm "$ex".ll -o "$ex".ll; 
 noelle-load -S -load ~/CAT/lib/CAT.so -CAT "$ex".ll -o "$ex".ll; 
 
-opt -O3 "$ex".ll -o "$ex".ll;
+# opt -O3 "$ex".ll -o "$ex".ll;
+clang -O3 -S -emit-llvm "$ex".ll -o "$ex".ll;
 clang -O3 -c -march=native -fdeclspec "$ex".ll;
 clang -g -O3 -march=native -fdeclspec "$ex".o ../CAT.c;
 ./a.out;
