@@ -33,9 +33,13 @@ void List_push_back(List* l, void* value);
 void* List_pop_front(List* l);
 void* List_pop_back(List* l);
 
-Node* Node_next(Node n);
+Node* Node_next(Node* n);
 Node* Node_prev(Node n);
-void* Node_get(Node n);
+
+__attribute__((nothrow))
+// __declspec(noalias)
+__attribute__((pure))
+void* Node_get(Node* n);
 
 int64_t List_size(const List* l);
 int List_empty(List l);

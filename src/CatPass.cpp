@@ -11,6 +11,22 @@
 
 #include "Noelle.hpp"
 
+// lookup tree kernel
+// n-body kernel for trees
+
+// L1-cache-miss-rate
+// branch-misprediction
+// executed instructions - more vectorization=less instructions total
+
+// object dump the binary and see the registers it uses-
+// zmm or ymm registers uses in the binary for vectorization
+
+// TODO
+// 1. Automatic hoisting
+// 2. Where does improvement come from
+// 3. Try to get rid  of list completely, only use array
+// 4. Trie library, with small trie program
+
 using namespace llvm::noelle ;
 
 namespace {
@@ -46,10 +62,6 @@ namespace {
         auto LS = loop->getLoopStructure();
         auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
-
-          // TODO
-          // Reset performance to "normal" loop, try to lift List_to_array and List_size
-          // [DONE] 3 different benchmarks
 
           std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst };
 
@@ -103,7 +115,7 @@ namespace {
           }
 
           // Right now we are just blindly substituting all Node_gets with the array curr node
-          // TODO: How do we figure out that the node in the Node_get is actually the curr node??
+          // TODO later: How do we figure out that the node in the Node_get is actually the curr node??
 
           // only modify instructions that are reachable from the SSCDAG
           std::vector<Instruction*> instsToReplace;
@@ -176,13 +188,13 @@ namespace {
       /*
        * Run the data flow analysis
        */
-      auto customDfr = dfe.applyBackward(
-        mainF,
-        computeGEN, 
-        computeKILL, 
-        computeIN, 
-        computeOUT
-        );
+      // auto customDfr = dfe.applyBackward(
+      //   mainF,
+      //   computeGEN, 
+      //   computeKILL, 
+      //   computeIN, 
+      //   computeOUT
+      //   );
 
 
 

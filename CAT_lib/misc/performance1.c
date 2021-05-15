@@ -15,8 +15,8 @@ int main() {
 		int64_t counter = 0;
 		Node* curr = List_front(&l);
 		while (curr != NULL) {
-			counter += Node_get(*curr);
-			curr = Node_next(*curr);
+			counter += Node_get(curr);
+			curr = Node_next(curr);
 		}
 		// printf("counter: %d\n", counter);
 	}

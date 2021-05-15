@@ -119,16 +119,20 @@ void* List_pop_back(List* l) {
 	return NULL;
 }
 
-Node* Node_next(Node n) {
-	return n.next;
+Node* Node_next(Node* n) {
+	return n->next;
 }
 
 Node* Node_prev(Node n) {
 	return n.previous;
 }
 
-void* Node_get(Node n) {
-	return n.value;
+
+__attribute__((nothrow))
+// __declspec(noalias)
+__attribute__((pure))
+void* Node_get(Node* n) {
+	return n->value;
 }
 
 int64_t List_size(const List* l) {
@@ -173,7 +177,7 @@ void** List_to_array(const List* l) {
 	void** arr = malloc(l->length * sizeof(void*));
 	while (curr != NULL) {
 		arr[i++] = curr->value;
-		curr = Node_next(*curr);
+		curr = curr->next;
 	}
 	return arr;
 }
