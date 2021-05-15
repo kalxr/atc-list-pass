@@ -55,11 +55,47 @@ namespace {
       // auto mainF = fm->getEntryFunction();
 
       auto loopStructures = noelle.getLoopStructures();
-      auto loops = noelle.getLoops();
       auto PDG = noelle.getProgramDependenceGraph();
 
-      for (auto loop : *loops) {
-        auto LS = loop->getLoopStructure();
+      auto loopForest = noelle.organizeLoopsInTheirNestingForest(*loopStructures);
+
+      std::function<void (StayConnectedNestedLoopForestNode *)> traverseTree = 
+        [&traverseTree](StayConnectedNestedLoopForestNode *n){
+        auto l = n->getLoop();
+        
+        for (auto c : n->getDescendants()){
+          auto childLS = c->getLoop();
+          childLS->setParentLoop(l);
+          traverseTree(c);
+        }
+
+        return ;
+      };
+
+      /*
+       * Iterate over the trees that compose the forest.
+       */
+      errs() << "Traversing the loop forest\n";
+      for (auto loopTree : loopForest->getTrees()){
+        
+        /*
+         * Fetch the root of the current tree.
+         */
+        auto rootLoop = loopTree->getLoop();
+        traverseTree(loopTree);
+        errs() << "\n";
+      }
+
+      for (auto LS : *loopStructures) {
+        auto loop = noelle.getLoop(LS);
+        errs() << " Nesting level = " << LS->getNestingLevel() << "\n";
+        errs() << " This loop has " << LS->getNumberOfSubLoops() << " sub-loops (including sub-loops of sub-loops)\n";
+
+        auto loopParent = LS->getParentLoop();
+        if (loopParent != NULL) {
+          errs() << "got parent loop!\n";
+        }
+
         auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
 
@@ -69,6 +105,32 @@ namespace {
           auto voidPtrPtr = PointerType::get(voidPtr, 0);
           ConstantInt* zero = ConstantInt::get(Type::getInt64Ty(context), 0);
           ConstantInt* one = ConstantInt::get(Type::getInt64Ty(context), 1);
+
+
+          /*
+           * Hoisting
+           */
+
+          
+
+          auto pdg = noelle.getProgramDependenceGraph();
+          auto listValue = listFrontInst->getArgOperand(0);
+          if (auto listInst = dyn_cast<Instruction>(listValue)) {
+            errs() << "Getting deps for listInst\n";
+            auto dependenceIter = [&](Value* from, DGEdge<Value>* dep) -> bool {
+              if (auto inst = dyn_cast<Instruction>(from)) {
+                errs() << "Dep: " << *inst << "\n";
+
+                
+
+              }          
+              return false;
+            };
+
+            pdg->iterateOverDependencesFrom(listInst, true, true, true, dependenceIter);
+          }
+
+          
 
           /* Inserting array transformation, call to size in preheader */
           auto preHeaderBlock = LS->getPreHeader()->getTerminator();
@@ -140,8 +202,15 @@ namespace {
           for (auto inst : instsToDelete) {
             inst->eraseFromParent();
           }
+
+
+          
+
+
         }
       }
+
+      
 
       // loops = noelle.getLoops();
 
@@ -159,31 +228,34 @@ namespace {
       // look at in-set for list_to_array. if elements are in my loop no hoist. Else hoist and repeat
       // if your loop modifies list DO NOT transform
 
-      auto dfe = noelle.getDataFlowEngine();
+      // errs() << "Starting DFA\n";
+      // auto dfe = noelle.getDataFlowEngine();
 
-      auto computeGEN = [](Instruction *i, DataFlowResult *df) {
-        if (!isa<LoadInst>(i)){
-          return ;
-        }
-        auto& gen = df->GEN(i);
-        gen.insert(i);
-        return ;
-      };
-      auto computeKILL = [](Instruction *, DataFlowResult *) {
-        return ;
-      };
-      auto computeOUT = [](std::set<Value *>& OUT, Instruction *succ, DataFlowResult *df) {
-        auto& inS = df->IN(succ);
-        OUT.insert(inS.begin(), inS.end());
-        return ;
-      } ;
-      auto computeIN = [](std::set<Value *>& IN, Instruction *inst, DataFlowResult *df) {
-        auto& genI = df->GEN(inst);
-        auto& outI = df->OUT(inst);
-        IN.insert(outI.begin(), outI.end());
-        IN.insert(genI.begin(), genI.end());
-        return ;
-      };
+      // auto computeGEN = [](Instruction *i, DataFlowResult *df) {
+      //   if (!isa<LoadInst>(i)){
+      //     return ;
+      //   }
+      //   auto& gen = df->GEN(i);
+      //   gen.insert(i);
+      //   return ;
+      // };
+      // auto computeKILL = [](Instruction *, DataFlowResult *) {
+      //   return ;
+      // };
+      // auto computeOUT = [](std::set<Value *>& OUT, Instruction *succ, DataFlowResult *df) {
+      //   auto& inS = df->IN(succ);
+      //   OUT.insert(inS.begin(), inS.end());
+      //   return ;
+      // } ;
+      // auto computeIN = [](std::set<Value *>& IN, Instruction *inst, DataFlowResult *df) {
+      //   auto& genI = df->GEN(inst);
+      //   auto& outI = df->OUT(inst);
+      //   IN.insert(outI.begin(), outI.end());
+      //   IN.insert(genI.begin(), genI.end());
+      //   return ;
+      // };
+
+      // errs() << "Runing the DFA\n";
 
       /*
        * Run the data flow analysis
@@ -196,10 +268,7 @@ namespace {
       //   computeOUT
       //   );
 
-
-
-
-      return false;
+      return true;
     }
 
     bool isNodePointer(Value* v) {

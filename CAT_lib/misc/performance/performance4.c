@@ -1,22 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "CAT.h"
+#include "../CAT.h"
 
 int main() {
 	List l = List_new();
 
-	for (auto i = 0; i < 10000; i++) {
+	for (auto i = 0; i < 1000000; i++) {
 		List_push_back(&l, i);
 	}
 
-	
-	for (auto j = 0; j < 100000; j++) {
+	Node* front = List_front(&l);
+	for (auto j = 0; j < 3; j++) {
 		int64_t counter = 0;
-		Node* curr = List_front(&l);
+		Node* curr = front;
 		while (curr != NULL) {
-			counter += Node_get(curr);
-			curr = Node_next(curr);
+			counter += Node_get(*curr);
+			curr = Node_next(*curr);
 		}
 		// printf("counter: %d\n", counter);
 	}

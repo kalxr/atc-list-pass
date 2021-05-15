@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "CAT.h"
+#include "../CAT.h"
 
 int main() {
 	List l = List_new();
@@ -10,13 +10,13 @@ int main() {
 		List_push_back(&l, i);
 	}
 
-	Node* front = List_front(&l);
-	for (auto j = 0; j < 3; j++) {
+	
+	for (auto j = 0; j < 1000; j++) {
 		int64_t counter = 0;
-		Node* curr = front;
+		Node* curr = List_front(&l);
 		while (curr != NULL) {
-			counter += Node_get(*curr);
-			curr = Node_next(*curr);
+			counter += Node_get(curr);
+			curr = Node_next(curr);
 		}
 		// printf("counter: %d\n", counter);
 	}

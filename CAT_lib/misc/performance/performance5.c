@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "CAT.h"
+#include "../CAT.h"
 
 int main() {
 	List l = List_new();
