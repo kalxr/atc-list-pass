@@ -98,7 +98,7 @@ namespace {
         auto [listFrontInst, listNextInst, phiNodeInst] = isListLoop(loop, PDG);
         if (listFrontInst != nullptr && listNextInst != nullptr && phiNodeInst != nullptr) {
 
-          std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst };
+          std::set<Instruction*> instsToDelete = { phiNodeInst, listNextInst, listFrontInst };
 
           auto voidPtr = PointerType::get(IntegerType::get(context, 8), 0);
           auto voidPtrPtr = PointerType::get(voidPtr, 0);
