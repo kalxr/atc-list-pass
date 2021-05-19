@@ -4,33 +4,32 @@
 #include "../CAT.h"
 
 int main() {
-	// List l = List_new();
+	int64_t counter = 0;
 
-	// for (auto i = 0; i < 1000000; i++) {
-	// 	List_push_back(&l, i);
+	List l = List_new();
+
+	for (int i = 0; i < 1000; i++) {
+		List_push_back(&l, i);
+	}
+
+	for (int j = 0; j < 1000; j++) {
+		Node* curr = List_front(&l);
+		while (curr != NULL) {
+			counter += Node_get(curr);
+			curr = Node_next(curr);
+		}
+	}
+
+	// int array[1000];
+	// for (int i =0; i < 1000; i++) {
+	// 	array[i] = i;
+	// }
+	// int counter = 0;
+	// for (int i =0; i < 1000; i++) {
+	// 	counter += array[i];
 	// }
 
-	
-	// int64_t counter = 0;
-	// for (auto j = 0; j < 1000; j++) {
-	// 	Node* curr = List_front(&l);
-	// 	while (curr != NULL) {
-	// 		counter += Node_get(curr);
-	// 		curr = Node_next(curr);
-	// 	}
-	// }
-	// printf("counter: %d\n", counter);
 
-	int array[1000];
-	for (int i =0; i < 1000; i++) {
-		array[i] = i;
-	}
-	int counter = 0;
-	for (int i =0; i < 1000; i++) {
-		// printf("%d\n", array[i]);
-		counter++;
-	}
-	printf("%d\n", counter);
-
+	printf("counter: %ld\n", counter);
 	return 0;
 }
