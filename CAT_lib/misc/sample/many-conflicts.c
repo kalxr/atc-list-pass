@@ -20,6 +20,14 @@ int main() {
                 curr = Node_next(curr);
             }
             printf("hi there");
+
+            curr = List_front(&l);
+            int counter = 0;
+            while (curr != NULL) {
+                counter += Node_get(curr);
+                curr = Node_next(curr);
+            }
+            printf("counter: %d", counter);
         }
         List_push_back(&l, 99);
     }   

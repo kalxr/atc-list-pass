@@ -23,12 +23,15 @@
 
 // TODO
 // 1. Automatic hoisting
-// 1b. Needs to be recursive + check for most conservative place to put this
+// 1b. [DONE] Needs to be recursive + check for most conservative place to put this
+// 1c. Identify when you can reuse for multiple (non-nested loops)
 // 2. [PAUSED] Where does improvement come from
 // 3. Try to get rid  of list completely, only use array
 // 4. Trie library, with small trie program
 
 // Questions
+// Turning on vectorizaiton for our inner loop?
+// Go over some results? 7x speed up is probably caused by what? 
 // what do bitcast instructions do?
 
 using namespace llvm::noelle ;
@@ -177,11 +180,32 @@ namespace {
           args.push_back(listFrontInst->getArgOperand(0));  
           auto structPtr = listFrontInst->getArgOperand(0)->getType();
 
-          auto func_list_to_array = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr).getCallee();
-          CallInst* listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", arrayTransformPosition);
+          CallInst* listToArrayInst;
+          CallInst* listSizeInst;
+
+          for (auto &inst : *(arrayTransformPosition->getParent())) {
+            if (auto callInst = dyn_cast<CallInst>(&inst)) {
+              if (callInst->getCalledFunction()->getName() == "List_to_array" && 
+                  callInst->getArgOperand(0) == listFrontInst->getArgOperand(0)) {
+                    listToArrayInst = callInst;
+              }
+            }
+
+            if (auto callInst = dyn_cast<CallInst>(&inst)) {
+              if (callInst->getCalledFunction()->getName() == "List_size") {
+                    listSizeInst = callInst;
+              }
+            }
+          }
+
+          if (listToArrayInst == NULL || listSizeInst == NULL) {
+            auto func_list_to_array = M.getOrInsertFunction("List_to_array", voidPtrPtr, structPtr).getCallee();
+            listToArrayInst = CallInst::Create(func_list_to_array, ArrayRef<Value*>(args), "ArrAy", arrayTransformPosition);
+            
+            auto funcListSize = M.getOrInsertFunction("List_size", IntegerType::get(context, 64), structPtr).getCallee();
+            listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", arrayTransformPosition); 
+          }
           
-          auto funcListSize = M.getOrInsertFunction("List_size", IntegerType::get(context, 64), structPtr).getCallee();
-          CallInst* listSizeInst = CallInst::Create(funcListSize, ArrayRef<Value*>(args), "siZE", arrayTransformPosition); 
 
           /* Inserting a new phiNode for I counter in the header */
           errs() << "Inserting a new phiNode\n";
