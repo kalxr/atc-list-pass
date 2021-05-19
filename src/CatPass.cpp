@@ -24,7 +24,7 @@
 // TODO
 // 1. Automatic hoisting
 // 1b. Needs to be recursive + check for most conservative place to put this
-// 2. Where does improvement come from
+// 2. [PAUSED] Where does improvement come from
 // 3. Try to get rid  of list completely, only use array
 // 4. Trie library, with small trie program
 
@@ -113,8 +113,11 @@ namespace {
           auto listValue = listFrontInst->getArgOperand(0);
 
           Instruction* arrayTransformPosition = nullptr;
+
           if (auto listInst = dyn_cast<Instruction>(listValue)) {
             errs() << "Getting deps for listInst\n";
+
+            set<Instruction*> dependences;
             auto dependenceIter = [&](Value* from, DGEdge<Value>* dep) -> bool {
               if (auto inst = dyn_cast<Instruction>(from)) {
 
@@ -130,38 +133,42 @@ namespace {
                 }
 
                 errs() << "Dep: " << *inst << "\n";
-
-                // TODO this needs to be recursive + check for most conservative place to put this
-                if (LS->isIncluded(inst)) {
-                  return true;
-                }
-
-                auto loopParent = LS->getParentLoop();
-                if (loopParent != NULL) {
-                  if (loopParent->isIncluded(inst)) {
-                    arrayTransformPosition = LS->getPreHeader()->getTerminator();
-                    return false;
-                  } else {
-                    arrayTransformPosition = loopParent->getPreHeader()->getTerminator();
-                    return false;
-                  }
-                } else {
-                  arrayTransformPosition = LS->getPreHeader()->getTerminator();
-                  return false;
-                }
+                dependences.insert(inst);
 
               }          
               return false;
             };
 
             pdg->iterateOverDependencesFrom(listInst, true, true, true, dependenceIter);
+
+            arrayTransformPosition = LS->getPreHeader()->getTerminator();
+
+            auto currParent = LS->getParentLoop();
+            auto currLS = LS;
+
+            while (currParent != NULL) {
+
+              bool foundConflict = false;
+              for (auto inst : currParent->getInstructions()) {
+                if (dependences.count(inst) != 0) {
+                  arrayTransformPosition = currLS->getPreHeader()->getTerminator();
+                  foundConflict = true;
+                  break;
+                }
+              }
+
+              if (foundConflict) { break; }
+
+              arrayTransformPosition = currParent->getPreHeader()->getTerminator();
+              currParent = currParent->getParentLoop();
+              currLS = currLS->getParentLoop();
+            } 
           }
 
           if (arrayTransformPosition == nullptr) {
+            errs() << "Aborting transformation: Found loop but unable to locate the List dependences\n";
             continue;
           }
-
-          
 
           /* Inserting array transformation, call to size in preheader */
           auto preHeaderBlock = LS->getPreHeader()->getTerminator();

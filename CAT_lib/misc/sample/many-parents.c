@@ -12,14 +12,18 @@ int main() {
 
 	printf("%d\n", List_size(&l));
 
-	for (int i = 0; i < 10; i++) {
-		Node* curr = List_front(&l);
-		while (curr != NULL) {
-			printf("element: %d\n", Node_get(curr));
-			curr = Node_next(curr);
-		}
-		printf("hi there");
-	}
+    for (int k = 0; k < 10; k ++) {
+        for (int j = 0; j < 10; j++) {
+            for (int i = 0; i < 10; i++) {
+                Node* curr = List_front(&l);
+                while (curr != NULL) {
+                    printf("element: %d\n", Node_get(curr));
+                    curr = Node_next(curr);
+                }
+                printf("hi there");
+            }
+        }   
+    }
 
 	// for (int k = 0; k < 10; k ++) {
 
