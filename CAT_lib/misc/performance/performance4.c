@@ -10,16 +10,16 @@ int main() {
 		List_push_back(&l, i);
 	}
 
-	Node* front = List_front(&l);
+	int64_t counter = 0;
 	for (auto j = 0; j < 3; j++) {
-		int64_t counter = 0;
+		Node* front = List_front(&l);
 		Node* curr = front;
 		while (curr != NULL) {
-			counter += Node_get(*curr);
-			curr = Node_next(*curr);
+			counter += Node_get(curr);
+			curr = Node_next(curr);
 		}
-		// printf("counter: %d\n", counter);
 	}
+	printf("counter: %d\n", counter);
 
 	return 0;
 }

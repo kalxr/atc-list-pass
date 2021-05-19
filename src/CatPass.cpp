@@ -373,6 +373,7 @@ namespace {
           // Make sure phi node has 2 args to List_front and Node_get
           if (auto phiNode = dyn_cast<PHINode>(inst)) {
             if (phiNode->getNumIncomingValues() != 2) {
+              errs() << "Aborting: phi node in SCCDAG does not have 2 incoming nodes\n";
               return false;
             }
 
@@ -394,10 +395,14 @@ namespace {
               nodeNext = firstCallInst;
               listFront = secondCallInst;
             }
-            else return false;
+            else {
+              errs() << "Aborting: phi node doesn't have Node_next and List_front\n";
+              return false;
+            }
 
             // Condition 2
             if (nodeNext->getArgOperand(0) != phiNode) {
+              errs() << "Aborting: first arg to Node_next is not the phi node\n";
               return false;
             }
 

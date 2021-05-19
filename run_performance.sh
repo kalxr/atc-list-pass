@@ -1,6 +1,6 @@
 cd CAT_lib/misc/performance;
 
-filename="performance1.c"
+filename="performance5.c"
 ex=$(echo "$filename" | cut -f 1 -d '.')
 
 clang -O3 -Rpass-analysis=loop-vectorize -march=native -fdeclspec $filename ../CAT.c;
