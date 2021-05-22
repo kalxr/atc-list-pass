@@ -14,8 +14,9 @@ clang -O1 -S -Rpass-analysis=loop-vectorize -emit-llvm -Xclang -disable-llvm-pas
 noelle-norm "$ex".ll -o "$ex".ll; 
 noelle-load -S -load ~/CAT/lib/CAT.so -CAT "$ex".ll -o "$ex".ll;
 
+# -debug for opt
 #opt -O3 "$ex".ll -o "$ex".ll;
-clang -O3 -S -Rpass-analysis=loop-vectorize -emit-llvm "$ex".ll -o "$ex".ll;
+clang -O3 -S -c -Rpass-analysis=loop-vectorize -emit-llvm "$ex".ll -o "$ex".ll;
 clang -O3 -c -Rpass-analysis=loop-vectorize -march=native -fdeclspec "$ex".ll;
 clang -g -O3 -Rpass-analysis=loop-vectorize -march=native -fdeclspec "$ex".o ../CAT.c;
 perf stat -r 1 -e L1-dcache-loads,L1-dcache-stores,L1-dcache-load-misses,instructions,branch-misses ./a.out;

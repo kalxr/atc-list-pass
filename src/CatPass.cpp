@@ -32,7 +32,7 @@
 // Questions
 // Turning on vectorizaiton for our inner loop?
 // Go over some results? 7x speed up is probably caused by what? 
-// what do bitcast instructions do?
+// What to focus on/prepare for presentation?
 
 using namespace llvm::noelle ;
 
