@@ -14,15 +14,16 @@ int main() {
 	}
 
 	
-	// int64_t counter = 0;
-	// for (int64_t j = 0; j < 100; j++) {
-	// 	Node* curr = List_front(&l);
-	// 	while (curr != NULL) {
-	// 		counter += *(int64_t*) (Node_get(curr));
-	// 		curr = Node_next(curr);
-	// 	}
-	// }
-	// printf("counter: %d\n", counter);
+	int64_t counter = 0;
+	for (int64_t j = 0; j < 100; j++) {
+		Node* curr = List_front(&l);
+		while (curr != NULL) {
+			counter += *(int64_t*) (Node_get(curr));
+			curr = Node_next(curr);
+		}
+		printf("counter: %d\n", counter);
+	}
+	printf("counter: %d\n", counter);
 
 	// ARRAY ------
 
