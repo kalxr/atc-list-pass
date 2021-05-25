@@ -1,0 +1,6 @@
+START 
+counter: -2059260032
+time: 0.952041
+herer hererh erhehre: 
+counter: -2059260032
+time: 0.014922
