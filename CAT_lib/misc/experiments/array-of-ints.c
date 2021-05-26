@@ -36,7 +36,6 @@ int main() {
         int64_t *array = malloc(length * sizeof(int64_t));
         int i = 0;
         while (curr != NULL) {
-            // int64_t* numPtr = (int64_t*) (curr->value);
             array[i++] = *(int64_t*) (curr->value);
             curr = curr->next;
         }
