@@ -1,12 +1,11 @@
 cd CAT_lib/misc/experiments;
 
-filename="array-of-ints-timing.c"
+filename="array-of-ints.c"
 ex=$(echo "$filename" | cut -f 1 -d '.')
 
 clang -O3 -march=native -fdeclspec $filename ../CAT.c;
-#perf stat -r 1 -e L1-dcache-loads,L1-dcache-stores,L1-dcache-load-misses,instructions,branch-misses ./a.out ;
-./a.out;
-
+perf stat -r 1 -e L1-dcache-loads,L1-dcache-load-misses,instructions,branch-misses \
+    ./a.out > output-original.txt;
 ### APPLY TRANSFORMATION ###
 
 # clang -O1 -S -Rpass-analysis=loop-vectorize -emit-llvm -Xclang -disable-llvm-passes -fdeclspec $filename -o "$ex".ll
@@ -18,7 +17,7 @@ clang -O3 -march=native -fdeclspec $filename ../CAT.c;
 # clang -O3 -c -Rpass-analysis=loop-vectorize -march=native -fdeclspec "$ex".ll;
 # clang -g -O3 -Rpass-analysis=loop-vectorize -march=native -fdeclspec "$ex".o ../CAT.c;
 # perf stat -r 1 -e \
-#     L1-dcache-loads,L1-dcache-stores,L1-dcache-load-misses,instructions,branch-misses  \
+#     L1-dcache-loads,L1-dcache-load-misses,instructions,branch-misses  \
 #     ./a.out > output-better.txt;
 
 cd ../../..;
